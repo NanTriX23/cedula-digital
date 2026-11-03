@@ -494,14 +494,20 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
     let desc = exp.description || '';
     const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/(.+) - (.+) \((.+)\)/);
     let productName = desc;
-    if (match) productName = match[1].trim();
+    let companyName = (exp.clubName && exp.clubName !== 'Evento') ? exp.clubName : '';
+    if (match) {
+      productName = match[1].trim();
+      if (!companyName) {
+        companyName = match[2].trim();
+      }
+    }
 
     const boxTop = y;
     const boxCenterY = boxTop + (itemHeight / 2);
 
     // Tipografia do Produto: Sans-serif (Helvetica), Negrito
+    let fontSize = 11.5;
     doc.setFont('helvetica', 'bold');
-    let fontSize = 12;
     doc.setFontSize(fontSize);
     let lines = doc.splitTextToSize(productName, 48);
 
@@ -517,14 +523,28 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
       lines = doc.splitTextToSize(productName, 48);
     }
 
-    // Centralização vertical e horizontal perfeita no espaço do vale
-    const lineHeight = fontSize === 12 ? 5.2 : 4.4;
-    const totalTextHeight = (lines.length - 1) * lineHeight;
-    const startTextY = boxCenterY - (totalTextHeight / 2) + 1.2;
+    const productLineHeight = fontSize === 11.5 ? 4.6 : 3.9;
+    const companyGap = 3.6;
+    const totalBlockHeight = ((lines.length - 1) * productLineHeight) + (companyName ? companyGap : 0);
+    const startProductY = boxCenterY - (totalBlockHeight / 2) + 0.8;
 
+    // Renderiza o Nome do Produto (em negrito)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(fontSize);
+    doc.setTextColor(0, 0, 0);
     lines.forEach((line: string, idx: number) => {
-      doc.text(line, 29, startTextY + (idx * lineHeight), { align: 'center' });
+      doc.text(line, 29, startProductY + (idx * productLineHeight), { align: 'center' });
     });
+
+    // Renderiza o Nome da Loja (menor, embaixo e centralizado)
+    if (companyName) {
+      const companyY = startProductY + ((lines.length - 1) * productLineHeight) + companyGap;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 60, 60);
+      doc.text(companyName, 29, companyY, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+    }
 
     y = boxTop + itemHeight;
 

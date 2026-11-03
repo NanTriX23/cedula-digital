@@ -992,7 +992,6 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                     <th className="p-3.5 w-10 text-center"></th>
                     <th className="p-3.5">Número</th>
                     <th className="p-3.5">Nome de Guerra</th>
-                    <th className="p-3.5">Nome Completo</th>
                     <th className="p-3.5">Esquadrão</th>
                     <th className="p-3.5 text-center">Lançamentos</th>
                     <th className="p-3.5 text-right">Valor Total Cédula (R$)</th>
@@ -1002,7 +1001,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                 <tbody className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
                   {filteredCadetList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-500 font-medium">
+                      <td colSpan={7} className="p-8 text-center text-slate-500 font-medium">
                         Nenhum cadete encontrado no extrato deste período com os filtros aplicados.
                       </td>
                     </tr>
@@ -1031,9 +1030,6 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                             </td>
                             <td className={`p-3.5 font-bold ${isDark ? 'text-slate-100' : 'text-slate-950'}`}>
                               {cadet.warName}
-                            </td>
-                            <td className={`p-3.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                              {cadet.fullName}
                             </td>
                             <td className="p-3.5">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
@@ -1065,7 +1061,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
                           {/* Detalhamento Expansível dos Lançamentos do Cadete */}
                           {isExpanded && (
                             <tr className={isDark ? 'bg-slate-950/70' : 'bg-slate-50/80'}>
-                              <td colSpan={8} className="p-4 pl-12">
+                              <td colSpan={7} className="p-4 pl-12">
                                 <div className={`p-4 rounded-xl border space-y-3 ${
                                   isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-300 shadow-sm'
                                 }`}>

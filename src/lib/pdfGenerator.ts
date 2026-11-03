@@ -437,7 +437,8 @@ export async function generateEventReceiptPDF(options: EventReceiptOptions): Pro
 }
 
 // ==========================================
-// RECIBO TÉRMICO (BOBINA 80mm)
+// ==========================================
+// RECIBO TÉRMICO (BOBINA 58mm)
 // ==========================================
 
 export async function generateThermalReceiptPDF(options: EventReceiptOptions): Promise<{ pdfBlob: Blob; pdfUrl: string }> {
@@ -448,7 +449,7 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
 
   expenses.forEach(exp => {
     let companyName = exp.clubName || 'Evento';
-    const match = exp.description.match(/(.+) - (.+) \((.+)\)/);
+    const match = exp.description?.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || exp.description?.match(/(.+) - (.+) \((.+)\)/);
     if (match) {
       companyName = match[2].trim();
     }
@@ -464,13 +465,20 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
      expenses: exps
   }));
 
-  // Altura dinâmica da bobina
-  let docHeight = 10;
-  groupedByCompany.forEach(c => {
-     docHeight += 32; // Company header height (Loja + Data + Cad)
-     docHeight += (c.expenses.length * 22); // Each item height + divider space
+  const itemHeight = 24; // mm de altura para cada vale de produto
+
+  // Cálculo exato da altura da bobina
+  let calcY = 8;
+  groupedByCompany.forEach((group, groupIndex) => {
+    calcY += 10.5; // Header loja + data/cad + linha pontilhada
+    group.expenses.forEach((_, expIndex) => {
+      calcY += itemHeight;
+      if (expIndex < group.expenses.length - 1 || groupIndex < groupedByCompany.length - 1) {
+        calcY += 4;
+      }
+    });
   });
-  docHeight += 25; // Margem de avanço final (feed para corte na serrilha)
+  const docHeight = Math.ceil(calcY + 25); // 25mm margem final de avanço da serrilha
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -478,68 +486,82 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
     format: [58, docHeight]
   });
 
-  // Fundo amarelado para tela
+  // Fundo amarelado suave característico de bobina térmica
   doc.setFillColor(254, 252, 232);
   doc.rect(0, 0, 58, docHeight, 'F');
 
-  doc.setTextColor(0, 0, 0); // Preto puro
-  
+  doc.setTextColor(0, 0, 0); // Preto puro para máxima legibilidade
+
   let y = 8;
-  const shortCadetName = cadetName.substring(0, 16);
+  const shortCadetName = cadetName ? cadetName.substring(0, 20) : '';
 
   groupedByCompany.forEach((group, groupIndex) => {
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(10);
-    
-    // Header da Empresa (Apenas 1x no topo)
-    doc.text('------------------------', 29, y, { align: 'center' });
-    y += 5;
-    
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(12);
-    let comp = group.company.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (comp.length > 16) comp = comp.substring(0, 15) + '..';
+    // 1. Cabeçalho da Empresa / Loja
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    let comp = group.company.trim();
     doc.text(`LOJA: ${comp}`, 29, y, { align: 'center' });
-    
-    y += 4;
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(10);
-    doc.text('------------------------', 29, y, { align: 'center' });
-    
-    // Info Cadete/Data da Compra
-    y += 5;
-    doc.setFontSize(8);
-    doc.text(`Data: ${new Date().toLocaleString('pt-BR')}`, 3, y);
-    y += 4;
-    doc.text(`Cad: ${cadetNumber} ${shortCadetName}`, 3, y);
-    
-    y += 4;
-    doc.setFontSize(10);
-    doc.text('------------------------', 29, y, { align: 'center' });
-    y += 6;
+    y += 4.5;
 
+    // 2. Informações de Data e Cadete
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const dateStr = new Date().toLocaleString('pt-BR');
+    doc.text(`Data: ${dateStr}  ·  Cad: ${cadetNumber} ${shortCadetName}`, 29, y, { align: 'center' });
+    y += 4;
+
+    // Linha pontilhada de corte logo após o cabeçalho
+    doc.setLineDashPattern([1.5, 1], 0);
+    doc.setLineWidth(0.3);
+    doc.line(4, y, 54, y);
+    y += 2;
+
+    // 3. Vales de Produtos (Itens)
     group.expenses.forEach((exp, expIndex) => {
-      let desc = exp.description;
-      const match = desc.match(/(.+) - (.+) \((.+)\)/);
+      let desc = exp.description || '';
+      const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/(.+) - (.+) \((.+)\)/);
       let productName = desc;
       if (match) productName = match[1].trim();
 
-      // Produto (Centralizado)
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(11);
-      
-      let name = productName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (name.length > 18) name = name.slice(0, 16) + '..';
-      doc.text(name, 29, y, { align: 'center' });
-      
-      // Espaçamento entre pedidos (Opção B: Linha divisória discreta sem texto)
-      doc.setFont('courier', 'normal');
+      const boxTop = y;
+      const boxCenterY = boxTop + (itemHeight / 2);
+
+      // Tipografia do Produto: Sans-serif (Helvetica), Negrito
+      doc.setFont('helvetica', 'bold');
+      let fontSize = 12;
+      doc.setFontSize(fontSize);
+      let lines = doc.splitTextToSize(productName, 48);
+
+      // Se o nome for longo e vazar para mais de 2 linhas, ajusta a fonte proporcionalmente
+      if (lines.length > 2) {
+        fontSize = 10;
+        doc.setFontSize(fontSize);
+        lines = doc.splitTextToSize(productName, 48);
+      }
+      if (lines.length > 2) {
+        fontSize = 9;
+        doc.setFontSize(fontSize);
+        lines = doc.splitTextToSize(productName, 48);
+      }
+
+      // Centralização vertical e horizontal perfeita no espaço do vale
+      const lineHeight = fontSize === 12 ? 5 : 4.2;
+      const totalTextHeight = (lines.length - 1) * lineHeight;
+      const startTextY = boxCenterY - (totalTextHeight / 2) + 1.2;
+
+      lines.forEach((line: string, idx: number) => {
+        doc.text(line, 29, startTextY + (idx * lineHeight), { align: 'center' });
+      });
+
+      y = boxTop + itemHeight;
+
+      // Linha de corte pontilhada separando este vale do próximo
+      doc.setLineDashPattern([1.5, 1], 0);
+      doc.setLineWidth(0.3);
+      doc.line(4, y, 54, y);
+
       if (expIndex < group.expenses.length - 1 || groupIndex < groupedByCompany.length - 1) {
-         y += 10;
-         doc.text('- - - - - - - - - - - -', 29, y, { align: 'center' });
-         y += 12; // Espaço antes do próximo pedido
-      } else {
-         y += 25; // Avanço final de papel para destacar na serrilha da impressora
+        y += 4;
       }
     });
   });

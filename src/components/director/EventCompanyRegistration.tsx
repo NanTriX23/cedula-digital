@@ -20,9 +20,11 @@ export const EventCompanyRegistration: React.FC<EventCompanyRegistrationProps> =
   const [products, setProducts] = useState<EventProduct[]>([{ name: '', price: 0, category: '' }]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Configuração global do evento
-  const [globalEventName, setGlobalEventName] = useState('Evento Atual');
+  // Configuração global do evento e histórico
+  const [globalEventName, setGlobalEventName] = useState('Evento');
+  const [eventList, setEventList] = useState<string[]>(['Evento']);
   const [isSavingEventName, setIsSavingEventName] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Expansão
   const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
@@ -30,10 +32,14 @@ export const EventCompanyRegistration: React.FC<EventCompanyRegistrationProps> =
   const loadCompanies = async () => {
     setIsLoading(true);
     try {
-      const data = await DatabaseService.getEventCompanies();
+      const [data, name, list] = await Promise.all([
+        DatabaseService.getEventCompanies(),
+        DatabaseService.getSystemSetting('current_event_name', 'Evento').catch(() => 'Evento'),
+        DatabaseService.getEventList().catch(() => ['Evento']),
+      ]);
       setCompanies(data);
-      const name = await DatabaseService.getSystemSetting('current_event_name', 'Evento');
       setGlobalEventName(name);
+      setEventList(list);
     } catch (err) {
       console.error('Erro ao carregar empresas:', err);
     } finally {
@@ -45,13 +51,29 @@ export const EventCompanyRegistration: React.FC<EventCompanyRegistrationProps> =
     loadCompanies();
   }, []);
 
-  const handleSaveEventName = async () => {
+  const handleSaveEventName = async (customName?: string) => {
+    const targetName = (customName || globalEventName).trim();
+    if (!targetName) {
+      alert('Informe o nome do evento.');
+      return;
+    }
     setIsSavingEventName(true);
     try {
-      await DatabaseService.setSystemSetting('current_event_name', globalEventName);
-      alert('Nome do evento atualizado com sucesso!');
-    } catch(err) {
-      alert('Erro ao atualizar nome do evento.');
+      const ok = await DatabaseService.saveEventName(targetName);
+      if (ok) {
+        setGlobalEventName(targetName);
+        const updatedList = await DatabaseService.getEventList();
+        setEventList(updatedList);
+        setStatusMessage({
+          text: `Evento "${targetName}" ativado com sucesso! Novos lançamentos serão vinculados a este evento.`,
+          type: 'success',
+        });
+        setTimeout(() => setStatusMessage(null), 5000);
+      } else {
+        setStatusMessage({ text: 'Erro ao salvar o nome do evento no servidor.', type: 'error' });
+      }
+    } catch (err: any) {
+      setStatusMessage({ text: 'Falha na comunicação com o banco: ' + err.message, type: 'error' });
     } finally {
       setIsSavingEventName(false);
     }
@@ -142,36 +164,94 @@ export const EventCompanyRegistration: React.FC<EventCompanyRegistrationProps> =
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      {/* CONFIGURAÇÃO DO NOME DO EVENTO */}
-      <div className={`p-5 rounded-xl border transition-colors ${
+      {/* CONFIGURAÇÃO E TRANSIÇÃO ENTRE EVENTOS */}
+      <div className={`p-5 rounded-xl border space-y-4 transition-colors ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
-        <h3 className={`text-sm font-bold mb-3 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-          Configuração do Evento Atual
-        </h3>
-        <p className={`text-xs mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-          Este nome aparecerá no extrato do cadete (ex: Produto - Empresa ({globalEventName})).
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+              Configuração e Gestão do Evento Ativo
+            </h3>
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              Este nome aparecerá no extrato e na notinha do cadete: <span className="font-mono font-bold text-orange-400">Produto - Empresa ({globalEventName})</span>
+            </p>
+          </div>
+          <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+            isDark ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' : 'bg-orange-50 text-orange-700 border border-orange-200'
+          }`}>
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span>Ativo: {globalEventName}</span>
+          </div>
+        </div>
+
+        {statusMessage && (
+          <div className={`p-3 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all ${
+            statusMessage.type === 'success'
+              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+              : 'bg-red-500/10 border border-red-500/30 text-red-400'
+          }`}>
+            <span>{statusMessage.type === 'success' ? '✅' : '⚠️'}</span>
+            <span>{statusMessage.text}</span>
+          </div>
+        )}
+
         <div className="flex items-center space-x-3">
           <input
             type="text"
             value={globalEventName}
             onChange={(e) => setGlobalEventName(e.target.value)}
-            className={`flex-1 border rounded-lg px-4 py-2.5 text-xs font-semibold focus:outline-none ${
+            className={`flex-1 border rounded-lg px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
               isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-900'
             }`}
-            placeholder="Ex: Arraiá da AFA 2026"
+            placeholder="Ex: Cardápio SCAER, Baile do Espadim 2026..."
           />
           <button
-            onClick={handleSaveEventName}
+            onClick={() => handleSaveEventName()}
             disabled={isSavingEventName}
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-colors ${
-              isDark ? 'bg-orange-500 text-slate-950 hover:bg-orange-400' : 'bg-orange-500 text-white hover:bg-orange-600'
+            className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-md ${
+              isDark
+                ? 'bg-orange-500 text-slate-950 hover:bg-orange-400 shadow-orange-500/20'
+                : 'bg-orange-500 text-white hover:bg-orange-600'
             }`}
           >
-            {isSavingEventName ? 'Salvando...' : 'Salvar Nome'}
+            {isSavingEventName ? 'Salvando...' : 'Salvar / Ativar Evento'}
           </button>
         </div>
+
+        {/* Histórico / Transição Rápida entre Eventos */}
+        {eventList.length > 0 && (
+          <div className="pt-2 border-t border-slate-800/60">
+            <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Eventos Cadastrados (clique para alternar o evento ativo):
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {eventList.map((evName) => {
+                const isActive = evName.trim() === globalEventName.trim();
+                return (
+                  <button
+                    key={evName}
+                    type="button"
+                    onClick={() => handleSaveEventName(evName)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 border ${
+                      isActive
+                        ? isDark
+                          ? 'bg-orange-500 text-slate-950 font-bold border-orange-400 shadow-sm'
+                          : 'bg-orange-500 text-white font-bold border-orange-600 shadow-sm'
+                        : isDark
+                          ? 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>{isActive ? '🎯' : '📅'}</span>
+                    <span>{evName}</span>
+                    {isActive && <span className="text-[10px] opacity-80">(Ativo)</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* HEADER DA LISTA DE EMPRESAS */}

@@ -1260,7 +1260,6 @@ class DatabaseServiceClass {
   async getEventCompanies(): Promise<EventCompany[]> {
     return queryCache.fetch('event_companies', async () => {
       try {
-        await this.ensureEventCompaniesCollection();
         const records = await pb.collection('event_companies').getFullList({ sort: 'name' });
         return records.map((r) => ({
           id: r.id,
@@ -1348,6 +1347,50 @@ class DatabaseServiceClass {
     } catch (err) {
       console.error('Erro ao salvar configuração:', err);
       return false;
+    }
+  }
+
+  // Gestão de Eventos Históricos
+  async getEventList(): Promise<string[]> {
+    try {
+      const raw = await this.getSystemSetting('event_list', '[]');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (e) {
+      // ignore
+    }
+    const current = await this.getSystemSetting('current_event_name', 'Evento');
+    return current ? [current] : ['Evento'];
+  }
+
+  async saveEventName(name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    await this.setSystemSetting('current_event_name', trimmed);
+    try {
+      const list = await this.getEventList();
+      if (!list.includes(trimmed)) {
+        list.push(trimmed);
+        await this.setSystemSetting('event_list', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.error('Erro ao atualizar lista de eventos:', e);
+    }
+    return true;
+  }
+
+  async getEventTransactions(): Promise<Transaction[]> {
+    try {
+      const records = await pb.collection('transactions').getFullList({
+        filter: 'clubId="EVENTO"',
+        sort: '-created',
+      });
+      return records as unknown as Transaction[];
+    } catch (err) {
+      console.error('Erro ao buscar transações de eventos:', err);
+      return [];
     }
   }
 }

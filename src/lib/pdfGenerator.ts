@@ -310,7 +310,7 @@ export async function generateEventReceiptPDF(options: EventReceiptOptions): Pro
   expenses.forEach(exp => {
     // A descrição do produto vem no formato: "Produto - Empresa (Evento) [1/3]" ou "Produto - Empresa (Evento)"
     let desc = exp.description;
-    const match = desc.match(/(.+) - (.+) \(Evento\)/);
+    const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/(.+) - (.+) \((.+)\)/);
     let productName = desc;
     let companyName = exp.clubName || 'Evento';
 

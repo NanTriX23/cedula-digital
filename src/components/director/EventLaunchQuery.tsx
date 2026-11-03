@@ -1,8 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Expense, User } from '../../types';
 import { DatabaseService } from '../../lib/pocketbase';
 import { generateEventReceiptPDF, generateThermalReceiptPDF } from '../../lib/pdfGenerator';
-import { Search, Trash2, Printer, ChevronDown, ChevronRight, Store, FileText, CheckCircle, Ticket } from 'lucide-react';
+import {
+  Search,
+  Trash2,
+  Printer,
+  ChevronDown,
+  ChevronRight,
+  Store,
+  FileText,
+  CheckCircle,
+  Ticket,
+  RefreshCw,
+  Filter,
+  Calendar,
+} from 'lucide-react';
 
 interface EventLaunchQueryProps {
   periodExpenses: Expense[];
@@ -25,11 +38,92 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   const [expandedCadets, setExpandedCadets] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filtra apenas gastos do tipo EVENTO
+  // Dados rápidos em tempo real de eventos
+  const [directEventExpenses, setDirectEventExpenses] = useState<Expense[] | null>(null);
+  const [registeredEvents, setRegisteredEvents] = useState<string[]>([]);
+  const [selectedEventFilter, setSelectedEventFilter] = useState<string>('ALL');
+
+  // Helper para extrair o nome do evento da descrição: "Produto - Empresa (Nome do Evento)"
+  const extractEventName = (desc?: string): string => {
+    if (!desc) return 'Evento Geral';
+    const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/\(([^)]+)\)/);
+    if (match) {
+      const extracted = (match[3] || match[1] || '').trim();
+      if (extracted && extracted !== 'Evento' && extracted !== 'EVENTO') {
+        return extracted;
+      }
+      return extracted || 'Evento Geral';
+    }
+    return 'Evento Geral';
+  };
+
+  // Carrega transações de eventos diretamente do endpoint ultra-rápido otimizado
+  const loadFastEventData = async () => {
+    setIsRefreshing(true);
+    try {
+      const [txs, list] = await Promise.all([
+        DatabaseService.getEventTransactions().catch(() => []),
+        DatabaseService.getEventList().catch(() => []),
+      ]);
+      if (txs) {
+        setDirectEventExpenses(txs as unknown as Expense[]);
+      }
+      if (list && list.length > 0) {
+        setRegisteredEvents(list);
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar dados rápidos de evento:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFastEventData();
+  }, []);
+
+  // Lista base de gastos de eventos (usa direto do banco ou fallback nas props)
+  const allEventExpenses = useMemo(() => {
+    if (directEventExpenses !== null) {
+      return directEventExpenses;
+    }
+    return periodExpenses.filter((e) => e.clubId === 'EVENTO' || e.category === 'evento');
+  }, [directEventExpenses, periodExpenses]);
+
+  // Lista de eventos disponíveis com contagem e total arrecadado
+  const availableEvents = useMemo(() => {
+    const statsMap = new Map<string, { count: number; total: number }>();
+
+    allEventExpenses.forEach((exp) => {
+      const evName = extractEventName(exp.description);
+      const curr = statsMap.get(evName) || { count: 0, total: 0 };
+      curr.count += 1;
+      curr.total += exp.amount;
+      statsMap.set(evName, curr);
+    });
+
+    registeredEvents.forEach((ev) => {
+      const trimmed = ev.trim();
+      if (trimmed && !statsMap.has(trimmed)) {
+        statsMap.set(trimmed, { count: 0, total: 0 });
+      }
+    });
+
+    return Array.from(statsMap.entries()).sort((a, b) => {
+      if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [allEventExpenses, registeredEvents]);
+
+  // Filtra apenas gastos do evento selecionado
   const eventExpenses = useMemo(() => {
-    return periodExpenses.filter((e) => e.clubId === 'EVENTO');
-  }, [periodExpenses]);
+    if (selectedEventFilter === 'ALL') {
+      return allEventExpenses;
+    }
+    return allEventExpenses.filter((e) => extractEventName(e.description) === selectedEventFilter);
+  }, [allEventExpenses, selectedEventFilter]);
 
   // Agrupa por Cadete e por Pedidos
   const groupedByCadet = useMemo(() => {
@@ -91,7 +185,6 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   const companyTotals = useMemo(() => {
     const map = new Map<string, number>();
     eventExpenses.forEach((exp) => {
-      // O nome da empresa está no clubName (ou na descrição se fosse muito antigo, mas salvamos em clubName)
       const company = exp.clubName || 'Evento (Geral)';
       map.set(company, (map.get(company) || 0) + exp.amount);
     });
@@ -126,6 +219,9 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
     try {
       const success = await DatabaseService.deleteTransaction(expense.id);
       if (success) {
+        if (directEventExpenses) {
+          setDirectEventExpenses((prev) => (prev ? prev.filter((e) => e.id !== expense.id) : null));
+        }
         if (onRefreshData) onRefreshData();
       } else {
         alert('Erro ao excluir o lançamento. Verifique sua conexão.');
@@ -177,11 +273,125 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
     }
   };
 
+  const handlePrintGeneralPDF = async () => {
+    if (eventExpenses.length === 0) {
+      alert('Nenhum lançamento no evento selecionado para gerar o extrato.');
+      return;
+    }
+    setIsGeneratingPdf('general-event-report');
+    try {
+      const eventLabel = selectedEventFilter === 'ALL' ? 'CONSOLIDADO DE TODOS OS EVENTOS' : `EVENTO: ${selectedEventFilter}`;
+      const { pdfUrl } = await generateEventReceiptPDF({
+        cadetNumber: 'GERAL',
+        cadetName: eventLabel,
+        period: selectedPeriod,
+        expenses: eventExpenses,
+        director: directorUser,
+      });
+      window.open(pdfUrl, '_blank');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao gerar o extrato geral do evento.');
+    } finally {
+      setIsGeneratingPdf(null);
+    }
+  };
 
   const grandTotal = eventExpenses.reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
     <div className="space-y-6 animate-in fade-in">
+      {/* SELETOR DE EVENTO & BOTÕES DE CONTROLE */}
+      <div className={`p-4 rounded-xl border transition-colors ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center space-x-2">
+            <Filter className={`w-4 h-4 ${isDark ? 'text-orange-400' : 'text-orange-600'}`} />
+            <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              Filtrar por Evento:
+            </h4>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={loadFastEventData}
+              disabled={isRefreshing}
+              title="Recarregar lançamentos em tempo real"
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                  : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-orange-400' : ''}`} />
+              <span>{isRefreshing ? 'Atualizando...' : 'Recarregar'}</span>
+            </button>
+
+            <button
+              onClick={handlePrintGeneralPDF}
+              disabled={isGeneratingPdf !== null || eventExpenses.length === 0}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                isDark
+                  ? 'bg-orange-500 text-slate-950 hover:bg-orange-400'
+                  : 'bg-orange-500 text-white hover:bg-orange-600'
+              }`}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isGeneratingPdf === 'general-event-report' ? 'Gerando...' : 'Extrato Geral (PDF)'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Chips de Seleção de Eventos */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setSelectedEventFilter('ALL')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 border ${
+              selectedEventFilter === 'ALL'
+                ? isDark
+                  ? 'bg-orange-500 text-slate-950 border-orange-400 shadow-sm'
+                  : 'bg-orange-500 text-white border-orange-600 shadow-sm'
+                : isDark
+                  ? 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            <span>🎯</span>
+            <span>Todos os Eventos ({allEventExpenses.length})</span>
+          </button>
+
+          {availableEvents.map(([eventName, stats]) => {
+            const isSelected = selectedEventFilter === eventName;
+            return (
+              <button
+                key={eventName}
+                type="button"
+                onClick={() => setSelectedEventFilter(eventName)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 border ${
+                  isSelected
+                    ? isDark
+                      ? 'bg-orange-500 text-slate-950 border-orange-400 shadow-sm'
+                      : 'bg-orange-500 text-white border-orange-600 shadow-sm'
+                    : isDark
+                      ? 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                <Calendar className="w-3 h-3" />
+                <span>{eventName}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  isSelected ? 'bg-black/20 text-white' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {stats.count} itens · R$ {stats.total.toFixed(0)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Header Resumo */}
       <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
@@ -194,10 +404,10 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
           </div>
           <div>
             <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              Consulta Lançamentos de Evento
+              {selectedEventFilter === 'ALL' ? 'Consulta Geral: Todos os Eventos' : `Evento: ${selectedEventFilter}`}
             </h3>
             <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {filteredList.length} pedido(s) · {eventExpenses.length} item(ns) no total
+              {filteredList.length} cadete(s) comprador(es) · {eventExpenses.length} item(ns) lançados
             </p>
           </div>
         </div>
@@ -205,7 +415,9 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
         <div className={`px-4 py-2 rounded-xl border text-right ${
           isDark ? 'bg-orange-500/10 border-orange-500/20' : 'bg-orange-50 border-orange-200'
         }`}>
-          <div className={`text-[10px] font-bold ${isDark ? 'text-orange-400/80' : 'text-orange-600/80'}`}>TOTAL ARRECADADO (EVENTO)</div>
+          <div className={`text-[10px] font-bold ${isDark ? 'text-orange-400/80' : 'text-orange-600/80'}`}>
+            {selectedEventFilter === 'ALL' ? 'TOTAL GERAL (TODOS OS EVENTOS)' : `TOTAL ARRECADADO (${selectedEventFilter.toUpperCase()})`}
+          </div>
           <div className={`text-lg font-extrabold font-mono ${isDark ? 'text-orange-400' : 'text-orange-700'}`}>
             R$ {grandTotal.toFixed(2)}
           </div>
@@ -218,7 +430,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}>
           <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Arrecadação por Empresa (A repassar)
+            Arrecadação por Empresa / Fornecedor (A repassar)
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {companyTotals.map(([companyName, total]) => (
@@ -244,7 +456,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
         <Search className={`w-4 h-4 ml-4 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
         <input
           type="text"
-          placeholder="Buscar pedido por nome do cadete ou número..."
+          placeholder="Buscar pedidos por nome do cadete ou número de matrícula..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={`w-full px-3 py-3 text-xs font-semibold focus:outline-none bg-transparent ${
@@ -259,8 +471,8 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
           isDark ? 'bg-slate-900/50 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'
         }`}>
           <Store className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-bold">Nenhum pedido de evento encontrado no período.</p>
-          <p className="text-xs mt-1">Verifique o período selecionado ou o termo de busca.</p>
+          <p className="text-sm font-bold">Nenhum pedido de evento encontrado com o filtro atual.</p>
+          <p className="text-xs mt-1">Selecione outro evento ou termo de busca.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -268,7 +480,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
             const isExpanded = expandedCadets.has(group.cadetNumber);
             return (
               <div
-                key={group.cadetId}
+                key={group.cadetId || group.cadetNumber}
                 className={`rounded-xl border overflow-hidden transition-colors ${
                   isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                 }`}
@@ -309,7 +521,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
                     <button
                       onClick={() => handlePrintReceipt(group)}
                       disabled={isGeneratingPdf !== null}
-                      title="Imprimir A4/PDF de TODO o evento para o cadete"
+                      title="Imprimir A4/PDF deste evento para o cadete"
                       className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
                         isGeneratingPdf === group.cadetId
                           ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
@@ -347,7 +559,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
                             <button
                               onClick={() => handlePrintThermalOrder(group, order)}
                               disabled={isGeneratingPdf !== null}
-                              title="Imprimir Notinha Amarela (Impressora Térmica)"
+                              title="Imprimir Notinha Térmica (Impressora 58mm)"
                               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-[9px] font-bold transition-all border ${
                                 isGeneratingPdf === order.id + '-thermal'
                                   ? 'bg-amber-100 border-amber-200 text-amber-400 cursor-not-allowed'

@@ -437,48 +437,28 @@ export async function generateEventReceiptPDF(options: EventReceiptOptions): Pro
 }
 
 // ==========================================
-// ==========================================
 // RECIBO TÉRMICO (BOBINA 58mm)
+// Layout alinhado ao padrão de vales de evento (vouchers destacados)
 // ==========================================
 
 export async function generateThermalReceiptPDF(options: EventReceiptOptions): Promise<{ pdfBlob: Blob; pdfUrl: string }> {
   const { cadetNumber, cadetName, expenses } = options;
 
-  // Agrupar por Empresa -> array de expenses (cada um é 1 unidade individual)
-  const companyMap = new Map<string, Expense[]>();
+  // Cada despesa é 1 vale individual de produto
+  const itemHeight = 26; // mm de altura para cada vale de produto
 
-  expenses.forEach(exp => {
-    let companyName = exp.clubName || 'Evento';
-    const match = exp.description?.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || exp.description?.match(/(.+) - (.+) \((.+)\)/);
-    if (match) {
-      companyName = match[2].trim();
-    }
+  // Cálculo dinâmico da altura total da bobina
+  let calcY = 6;
+  const hasHeader = Boolean(cadetNumber || cadetName);
+  if (hasHeader) {
+    calcY += 6; // espaço para cabeçalho do pedido + linha divisória
+  }
 
-    if (!companyMap.has(companyName)) {
-      companyMap.set(companyName, []);
-    }
-    companyMap.get(companyName)!.push(exp);
-  });
+  // Altura dos vales (itens)
+  calcY += expenses.length * itemHeight;
 
-  const groupedByCompany = Array.from(companyMap.entries()).map(([company, exps]) => ({
-     company,
-     expenses: exps
-  }));
-
-  const itemHeight = 24; // mm de altura para cada vale de produto
-
-  // Cálculo exato da altura da bobina
-  let calcY = 8;
-  groupedByCompany.forEach((group, groupIndex) => {
-    calcY += 10.5; // Header loja + data/cad + linha pontilhada
-    group.expenses.forEach((_, expIndex) => {
-      calcY += itemHeight;
-      if (expIndex < group.expenses.length - 1 || groupIndex < groupedByCompany.length - 1) {
-        calcY += 4;
-      }
-    });
-  });
-  const docHeight = Math.ceil(calcY + 25); // 25mm margem final de avanço da serrilha
+  // 25mm de margem final de avanço de papel para serrilha da impressora
+  const docHeight = Math.ceil(calcY + 25);
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -489,81 +469,69 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   // Fundo amarelado suave característico de bobina térmica
   doc.setFillColor(254, 252, 232);
   doc.rect(0, 0, 58, docHeight, 'F');
+  doc.setTextColor(0, 0, 0); // Preto puro para máxima legibilidade térmica
 
-  doc.setTextColor(0, 0, 0); // Preto puro para máxima legibilidade
+  let y = 6;
+  const shortCadetName = cadetName ? cadetName.trim() : '';
 
-  let y = 8;
-  const shortCadetName = cadetName ? cadetName.substring(0, 20) : '';
-
-  groupedByCompany.forEach((group, groupIndex) => {
-    // 1. Cabeçalho da Empresa / Loja
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    let comp = group.company.trim();
-    doc.text(`LOJA: ${comp}`, 29, y, { align: 'center' });
-    y += 4.5;
-
-    // 2. Informações de Data e Cadete
+  // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra)
+  if (hasHeader) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     const dateStr = new Date().toLocaleString('pt-BR');
-    doc.text(`Data: ${dateStr}  ·  Cad: ${cadetNumber} ${shortCadetName}`, 29, y, { align: 'center' });
-    y += 4;
+    const cadetInfo = [cadetNumber, shortCadetName].filter(Boolean).join(' ');
+    doc.text(`Cad: ${cadetInfo}  ·  ${dateStr}`, 29, y, { align: 'center' });
+    y += 3.5;
 
     // Linha pontilhada de corte logo após o cabeçalho
     doc.setLineDashPattern([1.5, 1], 0);
-    doc.setLineWidth(0.3);
+    doc.setLineWidth(0.25);
     doc.line(4, y, 54, y);
-    y += 2;
+  }
 
-    // 3. Vales de Produtos (Itens)
-    group.expenses.forEach((exp, expIndex) => {
-      let desc = exp.description || '';
-      const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/(.+) - (.+) \((.+)\)/);
-      let productName = desc;
-      if (match) productName = match[1].trim();
+  // 2. Vales de Produtos (Itens individuais)
+  expenses.forEach((exp) => {
+    let desc = exp.description || '';
+    const match = desc.match(/^(.+?)\s*-\s*(.+?)\s*\((.+?)\)(?:\s*\[\d+\/\d+\])?$/) || desc.match(/(.+) - (.+) \((.+)\)/);
+    let productName = desc;
+    if (match) productName = match[1].trim();
 
-      const boxTop = y;
-      const boxCenterY = boxTop + (itemHeight / 2);
+    const boxTop = y;
+    const boxCenterY = boxTop + (itemHeight / 2);
 
-      // Tipografia do Produto: Sans-serif (Helvetica), Negrito
-      doc.setFont('helvetica', 'bold');
-      let fontSize = 12;
+    // Tipografia do Produto: Sans-serif (Helvetica), Negrito
+    doc.setFont('helvetica', 'bold');
+    let fontSize = 12;
+    doc.setFontSize(fontSize);
+    let lines = doc.splitTextToSize(productName, 48);
+
+    // Se o nome for longo e vazar para mais de 2 linhas, ajusta a fonte proporcionalmente
+    if (lines.length > 2) {
+      fontSize = 10;
       doc.setFontSize(fontSize);
-      let lines = doc.splitTextToSize(productName, 48);
+      lines = doc.splitTextToSize(productName, 48);
+    }
+    if (lines.length > 2) {
+      fontSize = 9;
+      doc.setFontSize(fontSize);
+      lines = doc.splitTextToSize(productName, 48);
+    }
 
-      // Se o nome for longo e vazar para mais de 2 linhas, ajusta a fonte proporcionalmente
-      if (lines.length > 2) {
-        fontSize = 10;
-        doc.setFontSize(fontSize);
-        lines = doc.splitTextToSize(productName, 48);
-      }
-      if (lines.length > 2) {
-        fontSize = 9;
-        doc.setFontSize(fontSize);
-        lines = doc.splitTextToSize(productName, 48);
-      }
+    // Centralização vertical e horizontal perfeita no espaço do vale
+    const lineHeight = fontSize === 12 ? 5.2 : 4.4;
+    const totalTextHeight = (lines.length - 1) * lineHeight;
+    const startTextY = boxCenterY - (totalTextHeight / 2) + 1.2;
 
-      // Centralização vertical e horizontal perfeita no espaço do vale
-      const lineHeight = fontSize === 12 ? 5 : 4.2;
-      const totalTextHeight = (lines.length - 1) * lineHeight;
-      const startTextY = boxCenterY - (totalTextHeight / 2) + 1.2;
-
-      lines.forEach((line: string, idx: number) => {
-        doc.text(line, 29, startTextY + (idx * lineHeight), { align: 'center' });
-      });
-
-      y = boxTop + itemHeight;
-
-      // Linha de corte pontilhada separando este vale do próximo
-      doc.setLineDashPattern([1.5, 1], 0);
-      doc.setLineWidth(0.3);
-      doc.line(4, y, 54, y);
-
-      if (expIndex < group.expenses.length - 1 || groupIndex < groupedByCompany.length - 1) {
-        y += 4;
-      }
+    lines.forEach((line: string, idx: number) => {
+      doc.text(line, 29, startTextY + (idx * lineHeight), { align: 'center' });
     });
+
+    y = boxTop + itemHeight;
+
+    // Linha de corte pontilhada separando este vale do próximo
+    doc.setLineDashPattern([1.5, 1], 0);
+    doc.setLineWidth(0.25);
+    doc.line(4, y, 54, y);
   });
 
   const pdfBlob = doc.output('blob');

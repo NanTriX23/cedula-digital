@@ -270,6 +270,7 @@ export async function generateDirectorPDFReport(options: GeneratePdfOptions): Pr
   doc.setTextColor(100, 116, 139);
   doc.text(`Diretor de Cédula - Sociedade Acadêmica dos Cadetes da Aeronáutica`, 52, stampY + 63);
 
+  doc.autoPrint();
   const pdfBlob = doc.output('blob');
   const pdfUrl = URL.createObjectURL(pdfBlob);
 
@@ -430,6 +431,7 @@ export async function generateEventReceiptPDF(options: EventReceiptOptions): Pro
   doc.setTextColor(100, 116, 139);
   doc.text(`Diretor de Cédula (Resp. Evento)`, 52, stampY + 9);
 
+  doc.autoPrint();
   const pdfBlob = doc.output('blob');
   const pdfUrl = URL.createObjectURL(pdfBlob);
 
@@ -554,8 +556,41 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
     doc.line(4, y, 54, y);
   });
 
+  doc.autoPrint();
   const pdfBlob = doc.output('blob');
   const pdfUrl = URL.createObjectURL(pdfBlob);
 
   return { pdfBlob, pdfUrl };
+}
+
+export function printThermalDirectly(pdfUrl: string): void {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.src = pdfUrl;
+  document.body.appendChild(iframe);
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Falha no iframe.print(), fallback para janela:', e);
+        const win = window.open(pdfUrl, '_blank');
+        win?.focus();
+      }
+      setTimeout(() => {
+        try {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        } catch {}
+      }, 60000);
+    }, 250);
+  };
 }

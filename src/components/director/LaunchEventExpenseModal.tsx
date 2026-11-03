@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { User, Expense, EventCompany, EventProduct } from '../../types';
 import { DatabaseService } from '../../lib/pocketbase';
 import { ShoppingCart, Trash2, Search, CheckCircle2, X, Store, Package } from 'lucide-react';
-import { generateThermalReceiptPDF } from '../../lib/pdfGenerator';
+import { generateThermalReceiptPDF, printThermalDirectly } from '../../lib/pdfGenerator';
 
 interface LaunchEventExpenseModalProps {
   managerUser: User;
@@ -225,12 +225,12 @@ export const LaunchEventExpenseModal: React.FC<LaunchEventExpenseModalProps> = (
           expenses: launches as Expense[],
           director: managerUser,
         });
-        window.open(pdfUrl, '_blank');
+        printThermalDirectly(pdfUrl);
       } catch (pdfErr) {
         console.error('Erro ao gerar recibo térmico automático:', pdfErr);
       }
 
-      alert(`✅ ${launches.length} lançamento(s) de evento registrado(s) na cédula de ${cadet.cadetNumber} ${cadet.warName}!`);
+      // Lançamento concluído e impressão disparada diretamente para a máquina
       onClose();
     } catch (err) {
       console.error('Erro ao lançar gastos de evento:', err);

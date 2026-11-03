@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Expense, User } from '../../types';
 import { DatabaseService } from '../../lib/pocketbase';
-import { generateEventReceiptPDF, generateThermalReceiptPDF } from '../../lib/pdfGenerator';
+import { generateEventReceiptPDF, generateThermalReceiptPDF, printThermalDirectly } from '../../lib/pdfGenerator';
 import {
   Search,
   Trash2,
@@ -157,13 +157,22 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
       group.totalAmount += exp.amount;
       group.totalItems += 1;
 
-      // Agrupar por "Pedido" usando a data/hora até o minuto (ex: 2026-09-19 19:10)
-      const timeStr = exp.created ? exp.created.substring(0, 16) : 'unknown';
+      // Agrupar por "Pedido" usando a data/hora até o minuto
+      const rawDate = exp.createdAt || (exp as any).created_at || (exp as any).created;
+      const timeStr = rawDate ? String(rawDate).substring(0, 16) : 'unknown';
       let order = group.orders.find((o) => o.id === timeStr);
       if (!order) {
+        let fmtTime = '';
+        if (rawDate) {
+          try {
+            fmtTime = new Date(rawDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+          } catch {
+            fmtTime = String(rawDate).substring(0, 16);
+          }
+        }
         order = {
           id: timeStr,
-          formattedTime: exp.created ? new Date(exp.created).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '---',
+          formattedTime: fmtTime,
           totalAmount: 0,
           expenses: [],
         };
@@ -265,7 +274,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
         expenses: order.expenses,
         director: directorUser,
       });
-      window.open(pdfUrl, '_blank');
+      printThermalDirectly(pdfUrl);
     } catch (err) {
       console.error(err);
       alert('Erro ao gerar o PDF térmico.');
@@ -548,9 +557,11 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
                             <span className={`text-xs font-extrabold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                               Pedido {group.orders.length - i}
                             </span>
-                            <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {order.formattedTime}
-                            </span>
+                            {order.formattedTime && (
+                              <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                · {order.formattedTime}
+                              </span>
+                            )}
                           </div>
                           
                           <div className="flex items-center space-x-3">

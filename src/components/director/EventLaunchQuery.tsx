@@ -27,7 +27,7 @@ interface EventLaunchQueryProps {
 
 export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   periodExpenses,
-  onRefreshData,
+  onRefreshData: _onRefreshData,
   directorUser,
   theme = 'dark',
   selectedPeriod,
@@ -219,10 +219,11 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
     try {
       const success = await DatabaseService.deleteTransaction(expense.id);
       if (success) {
-        if (directEventExpenses) {
-          setDirectEventExpenses((prev) => (prev ? prev.filter((e) => e.id !== expense.id) : null));
-        }
-        if (onRefreshData) onRefreshData();
+        // Atualiza o estado local imediatamente sem recarregar a tela inteira
+        setDirectEventExpenses((prev) => {
+          const base = prev || periodExpenses.filter((e) => e.clubId === 'EVENTO' || e.category === 'evento');
+          return base.filter((e) => e.id !== expense.id);
+        });
       } else {
         alert('Erro ao excluir o lançamento. Verifique sua conexão.');
       }

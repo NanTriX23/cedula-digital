@@ -465,11 +465,12 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   }));
 
   // Altura dinâmica da bobina
-  let docHeight = 15;
+  let docHeight = 10;
   groupedByCompany.forEach(c => {
-     docHeight += 35; // Company header height (Loja + Data + Cad)
-     docHeight += (c.expenses.length * 16); // Each item height
+     docHeight += 32; // Company header height (Loja + Data + Cad)
+     docHeight += (c.expenses.length * 22); // Each item height + divider space
   });
+  docHeight += 25; // Margem de avanço final (feed para corte na serrilha)
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -531,21 +532,14 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
       if (name.length > 18) name = name.slice(0, 16) + '..';
       doc.text(name, 29, y, { align: 'center' });
       
-      // Corte
-      y += 8;
-      
+      // Espaçamento entre pedidos (Opção B: Linha divisória discreta sem texto)
       doc.setFont('courier', 'normal');
       if (expIndex < group.expenses.length - 1 || groupIndex < groupedByCompany.length - 1) {
+         y += 10;
          doc.text('- - - - - - - - - - - -', 29, y, { align: 'center' });
-         y += 4;
-         doc.setFontSize(8);
-         doc.text('---- CORTE AQUI ----', 29, y, { align: 'center' });
-         y += 6; // Espaço antes do próximo vale
+         y += 12; // Espaço antes do próximo pedido
       } else {
-         doc.text('------------------------', 29, y, { align: 'center' });
-         y += 4;
-         doc.setFontSize(8);
-         doc.text('*** FIM DOS VALES ***', 29, y, { align: 'center' });
+         y += 25; // Avanço final de papel para destacar na serrilha da impressora
       }
     });
   });

@@ -241,13 +241,13 @@ export const LaunchEventExpenseModal: React.FC<LaunchEventExpenseModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className={`w-full max-w-2xl rounded-3xl border p-6 sm:p-8 shadow-2xl space-y-5 my-8 transition-colors ${
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className={`w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl transition-colors overflow-hidden ${
         isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
       }`}>
 
-        {/* Header */}
-        <div className={`flex items-center justify-between border-b pb-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+        {/* Header Fixo */}
+        <div className={`flex items-center justify-between border-b p-5 sm:p-6 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-2xl bg-orange-500/10 text-orange-400 border border-orange-500/20">
               <ShoppingCart className="w-6 h-6" />
@@ -257,230 +257,238 @@ export const LaunchEventExpenseModal: React.FC<LaunchEventExpenseModalProps> = (
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Selecione cadete, empresa(s) e produto(s)</p>
             </div>
           </div>
-          <button onClick={onClose} className={`p-1 rounded-lg ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>
-            ✕
+          <button onClick={onClose} className={`p-1.5 rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 1. Selecionar Cadete */}
-        <div className="space-y-1.5">
-          <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Selecionar Cadete</label>
-          <div className="relative">
-            <div className={`flex items-center w-full border rounded-2xl overflow-hidden transition-all ${
-              isSearchDropdownOpen ? 'ring-2 ring-amber-500/50' : ''
-            } ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'}`}>
-              <Search className={`w-4 h-4 ml-4 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Buscar por nome, nome de guerra ou número..."
-                value={cadetSearchQuery}
-                onChange={(e) => { setCadetSearchQuery(e.target.value); setIsSearchDropdownOpen(true); }}
-                onFocus={() => setIsSearchDropdownOpen(true)}
-                className={`w-full px-3 py-3 text-xs font-semibold focus:outline-none bg-transparent ${
-                  isDark ? 'text-slate-100 placeholder:text-slate-600' : 'text-slate-900 placeholder:text-slate-400'
-                }`}
-              />
-              {cadetSearchQuery && (
-                <button type="button" onClick={() => { setCadetSearchQuery(''); setSelectedCadetId(''); setIsSearchDropdownOpen(true); searchInputRef.current?.focus(); }}
-                  className={`mr-2 p-1 rounded-lg ${isDark ? 'hover:bg-slate-800 text-slate-500' : 'hover:bg-slate-200 text-slate-400'}`}>
-                  <X className="w-3.5 h-3.5" />
-                </button>
+        {/* Corpo com Rolagem Independente (Nunca trava nem corta botões) */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 min-h-0">
+          {/* 1. Selecionar Cadete */}
+          <div className="space-y-1.5">
+            <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Selecionar Cadete</label>
+            <div className="relative">
+              <div className={`flex items-center w-full border rounded-2xl overflow-hidden transition-all ${
+                isSearchDropdownOpen ? 'ring-2 ring-amber-500/50' : ''
+              } ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'}`}>
+                <Search className={`w-4 h-4 ml-4 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Buscar por nome, nome de guerra ou número..."
+                  value={cadetSearchQuery}
+                  onChange={(e) => { setCadetSearchQuery(e.target.value); setIsSearchDropdownOpen(true); }}
+                  onFocus={() => setIsSearchDropdownOpen(true)}
+                  className={`w-full px-3 py-3 text-xs font-semibold focus:outline-none bg-transparent ${
+                    isDark ? 'text-slate-100 placeholder:text-slate-600' : 'text-slate-900 placeholder:text-slate-400'
+                  }`}
+                />
+                {cadetSearchQuery && (
+                  <button type="button" onClick={() => { setCadetSearchQuery(''); setSelectedCadetId(''); setIsSearchDropdownOpen(true); searchInputRef.current?.focus(); }}
+                    className={`mr-2 p-1 rounded-lg ${isDark ? 'hover:bg-slate-800 text-slate-500' : 'hover:bg-slate-200 text-slate-400'}`}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {isSearchDropdownOpen && (
+                <div ref={searchDropdownRef} className={`absolute z-50 w-full mt-1 max-h-48 overflow-y-auto border rounded-2xl shadow-xl ${
+                  isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                }`}>
+                  {filteredCadets.length === 0 ? (
+                    <div className={`px-4 py-3 text-xs font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Nenhum cadete encontrado
+                    </div>
+                  ) : filteredCadets.map((c) => (
+                    <button key={c.id} type="button" onClick={() => { setSelectedCadetId(c.id); setCadetSearchQuery(`${c.cadetNumber} ${c.warName}`); setIsSearchDropdownOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center space-x-2 ${
+                        selectedCadetId === c.id
+                          ? isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'
+                          : isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-50 text-slate-800'
+                      }`}>
+                      <span className="font-mono text-amber-400 font-bold shrink-0">{c.cadetNumber}</span>
+                      <span className="font-bold">{c.warName}</span>
+                      <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>({c.name})</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            {isSearchDropdownOpen && (
-              <div ref={searchDropdownRef} className={`absolute z-50 w-full mt-1 max-h-48 overflow-y-auto border rounded-2xl shadow-xl ${
-                isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-              }`}>
-                {filteredCadets.length === 0 ? (
-                  <div className={`px-4 py-3 text-xs font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                    Nenhum cadete encontrado
-                  </div>
-                ) : filteredCadets.map((c) => (
-                  <button key={c.id} type="button" onClick={() => { setSelectedCadetId(c.id); setCadetSearchQuery(`${c.cadetNumber} ${c.warName}`); setIsSearchDropdownOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center space-x-2 ${
-                      selectedCadetId === c.id
-                        ? isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'
-                        : isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-50 text-slate-800'
-                    }`}>
-                    <span className="font-mono text-amber-400 font-bold shrink-0">{c.cadetNumber}</span>
-                    <span className="font-bold">{c.warName}</span>
-                    <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>({c.name})</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {selectedCadetId && !isSearchDropdownOpen && (() => {
+              const sel = allCadets.find(c => c.id === selectedCadetId);
+              return sel ? (
+                <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-[11px] font-bold ${
+                  isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Selecionado: {sel.cadetNumber} {sel.warName}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
-          {selectedCadetId && !isSearchDropdownOpen && (() => {
-            const sel = allCadets.find(c => c.id === selectedCadetId);
-            return sel ? (
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-[11px] font-bold ${
-                isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'
-              }`}>
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Selecionado: {sel.cadetNumber} {sel.warName}</span>
-              </div>
-            ) : null;
-          })()}
+
+          {/* 2. Empresas e Produtos */}
+          {isLoadingCompanies ? (
+            <div className={`text-center py-4 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Carregando empresas do evento...</div>
+          ) : eventCompanies.length === 0 ? (
+            <div className={`text-center py-6 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+              <Store className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-xs font-bold">Nenhuma empresa cadastrada</p>
+              <p className="text-[11px] mt-1">Cadastre empresas na aba "Cadastro Eventos" primeiro.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Empresas e Produtos</label>
+
+              {companyEntries.map((entry, entryIdx) => (
+                <div key={entryIdx} className={`rounded-2xl border p-4 space-y-3 transition-colors ${
+                  entry.companyId
+                    ? isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
+                    : isDark ? 'bg-slate-950/50 border-slate-800 border-dashed' : 'bg-slate-50/50 border-slate-200 border-dashed'
+                }`}>
+                  {/* Seletor de empresa */}
+                  <div className="flex items-center gap-2">
+                    <Store className={`w-4 h-4 shrink-0 ${isDark ? 'text-orange-400' : 'text-orange-600'}`} />
+                    <select
+                      value={entry.companyId}
+                      onChange={(e) => handleSelectCompany(entryIdx, e.target.value)}
+                      className={`flex-1 border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    >
+                      <option value="">Selecionar empresa...</option>
+                      {eventCompanies.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {companyEntries.length > 1 && (
+                      <button type="button" onClick={() => handleRemoveCompanyEntry(entryIdx)}
+                        className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-red-500/20 text-slate-500 hover:text-red-400' : 'hover:bg-red-50 text-slate-400 hover:text-red-500'}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lista de produtos da empresa selecionada */}
+                  {entry.companyId && (() => {
+                    const company = eventCompanies.find((c) => c.id === entry.companyId);
+                    if (!company) return null;
+                    return (
+                      <div className="space-y-1.5 pl-6">
+                        {company.products.map((product) => {
+                          const isSelected = entry.items.some((i) => i.product.name === product.name);
+                          const selectedItem = entry.items.find((i) => i.product.name === product.name);
+                          return (
+                            <div key={product.name} className={`flex items-center justify-between py-2 px-3 rounded-xl text-xs transition-colors ${
+                              isSelected
+                                ? isDark ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-200'
+                                : isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-100'
+                            }`}>
+                              <label className="flex items-center space-x-2.5 cursor-pointer flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleProduct(entryIdx, product)}
+                                  className="rounded border-slate-600 text-orange-500 focus:ring-orange-500"
+                                />
+                                <Package className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{product.name}</span>
+                                {product.category && (
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-500'
+                                  }`}>{product.category}</span>
+                                )}
+                              </label>
+
+                              <div className="flex items-center space-x-2">
+                                {isSelected && selectedItem && (
+                                  <div className="flex items-center space-x-1">
+                                    <label className={`text-[10px] font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Qtd:</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={selectedItem.quantity}
+                                      onChange={(e) => handleQuantityChange(entryIdx, product.name, parseInt(e.target.value) || 1)}
+                                      className={`w-12 border rounded-lg px-1.5 py-1 text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-orange-500/50 ${
+                                        isDark ? 'bg-slate-900 border-slate-700 text-orange-400' : 'bg-white border-slate-300 text-orange-700'
+                                      }`}
+                                    />
+                                  </div>
+                                )}
+                                <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                                  R$ {isSelected && selectedItem
+                                    ? (product.price * selectedItem.quantity).toFixed(2)
+                                    : product.price.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* 2. Empresas e Produtos */}
-        {isLoadingCompanies ? (
-          <div className={`text-center py-4 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Carregando empresas do evento...</div>
-        ) : eventCompanies.length === 0 ? (
-          <div className={`text-center py-6 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-            <Store className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p className="text-xs font-bold">Nenhuma empresa cadastrada</p>
-            <p className="text-[11px] mt-1">Cadastre empresas na aba "Cadastro Eventos" primeiro.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Empresas e Produtos</label>
-
-            {companyEntries.map((entry, entryIdx) => (
-              <div key={entryIdx} className={`rounded-2xl border p-4 space-y-3 transition-colors ${
-                entry.companyId
-                  ? isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
-                  : isDark ? 'bg-slate-950/50 border-slate-800 border-dashed' : 'bg-slate-50/50 border-slate-200 border-dashed'
-              }`}>
-                {/* Seletor de empresa */}
-                <div className="flex items-center gap-2">
-                  <Store className={`w-4 h-4 shrink-0 ${isDark ? 'text-orange-400' : 'text-orange-600'}`} />
-                  <select
-                    value={entry.companyId}
-                    onChange={(e) => handleSelectCompany(entryIdx, e.target.value)}
-                    className={`flex-1 border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  >
-                    <option value="">Selecionar empresa...</option>
-                    {eventCompanies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  {companyEntries.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveCompanyEntry(entryIdx)}
-                      className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-red-500/20 text-slate-500 hover:text-red-400' : 'hover:bg-red-50 text-slate-400 hover:text-red-500'}`}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Lista de produtos da empresa selecionada */}
-                {entry.companyId && (() => {
-                  const company = eventCompanies.find((c) => c.id === entry.companyId);
-                  if (!company) return null;
-                  return (
-                    <div className="space-y-1.5 pl-6">
-                      {company.products.map((product) => {
-                        const isSelected = entry.items.some((i) => i.product.name === product.name);
-                        const selectedItem = entry.items.find((i) => i.product.name === product.name);
-                        return (
-                          <div key={product.name} className={`flex items-center justify-between py-2 px-3 rounded-xl text-xs transition-colors ${
-                            isSelected
-                              ? isDark ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-200'
-                              : isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-100'
-                          }`}>
-                            <label className="flex items-center space-x-2.5 cursor-pointer flex-1">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleToggleProduct(entryIdx, product)}
-                                className="rounded border-slate-600 text-orange-500 focus:ring-orange-500"
-                              />
-                              <Package className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                              <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{product.name}</span>
-                              {product.category && (
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-500'
-                                }`}>{product.category}</span>
-                              )}
-                            </label>
-
-                            <div className="flex items-center space-x-2">
-                              {isSelected && selectedItem && (
-                                <div className="flex items-center space-x-1">
-                                  <label className={`text-[10px] font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Qtd:</label>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={selectedItem.quantity}
-                                    onChange={(e) => handleQuantityChange(entryIdx, product.name, parseInt(e.target.value) || 1)}
-                                    className={`w-12 border rounded-lg px-1.5 py-1 text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-orange-500/50 ${
-                                      isDark ? 'bg-slate-900 border-slate-700 text-orange-400' : 'bg-white border-slate-300 text-orange-700'
-                                    }`}
-                                  />
-                                </div>
-                              )}
-                              <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                                R$ {isSelected && selectedItem
-                                  ? (product.price * selectedItem.quantity).toFixed(2)
-                                  : product.price.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+        {/* Rodapé Fixo na Base do Modal (Sempre Visível) */}
+        <div className={`p-4 sm:p-6 border-t shrink-0 space-y-3 ${
+          isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50/80'
+        }`}>
+          {/* Resumo */}
+          {allSelectedItems.length > 0 && (
+            <div className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-between ${
+              isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-300' : 'bg-orange-50 border-orange-200 text-orange-700'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <ShoppingCart className="w-4 h-4" />
+                <span>{totalItems} item(ns) de {companyEntries.filter(e => e.companyId && e.items.length > 0).length} empresa(s)</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Resumo */}
-        {allSelectedItems.length > 0 && (
-          <div className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between ${
-            isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-300' : 'bg-orange-50 border-orange-200 text-orange-700'
-          }`}>
-            <div className="flex items-center space-x-2">
-              <ShoppingCart className="w-4 h-4" />
-              <span>{totalItems} item(ns) de {companyEntries.filter(e => e.companyId && e.items.length > 0).length} empresa(s)</span>
+              <span className="text-sm font-extrabold font-mono">R$ {grandTotal.toFixed(2)}</span>
             </div>
-            <span className="text-sm font-extrabold font-mono">R$ {grandTotal.toFixed(2)}</span>
-          </div>
-        )}
+          )}
 
-        {/* Período e Confirmar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="space-y-1.5">
-            <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Mês de Cobrança</label>
-            <select
-              value={billingPeriod}
-              onChange={(e) => setBillingPeriod(e.target.value)}
-              className={`w-full border rounded-2xl px-4 py-2.5 text-xs font-semibold focus:outline-none ${
-                isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-900'
-              }`}
-            >
-              {Array.from({ length: 6 }).map((_, i) => {
-                const d = new Date();
-                d.setMonth(d.getMonth() + 2 - i); // Próximos 2 meses até 3 meses atrás
-                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                const monthName = d.toLocaleString('pt-BR', { month: 'long' });
-                const label = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} / ${d.getFullYear()}`;
-                const isFuture = d > new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-                return (
-                  <option key={val} value={val}>
-                    {label} {isFuture ? '(Prévia)' : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          {/* Período e Confirmar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Mês de Cobrança</label>
+              <select
+                value={billingPeriod}
+                onChange={(e) => setBillingPeriod(e.target.value)}
+                className={`w-full border rounded-2xl px-4 py-2.5 text-xs font-semibold focus:outline-none ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              >
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const d = new Date();
+                  d.setMonth(d.getMonth() + 2 - i); // Próximos 2 meses até 3 meses atrás
+                  const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                  const monthName = d.toLocaleString('pt-BR', { month: 'long' });
+                  const label = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} / ${d.getFullYear()}`;
+                  const isFuture = d > new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                  return (
+                    <option key={val} value={val}>
+                      {label} {isFuture ? '(Prévia)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
-          <div className="flex items-end">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || allSelectedItems.length === 0 || !selectedCadetId}
-              className={`w-full py-3 rounded-2xl font-extrabold text-xs shadow-lg transition-all flex items-center justify-center space-x-2 ${
-                allSelectedItems.length === 0 || !selectedCadetId
-                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white'
-              }`}
-            >
-              <span>{isSubmitting ? 'Gravando...' : `Confirmar ${totalItems} Lançamento(s)`}</span>
-            </button>
+            <div className="flex items-end">
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || allSelectedItems.length === 0 || !selectedCadetId}
+                className={`w-full py-3 rounded-2xl font-extrabold text-xs shadow-lg transition-all flex items-center justify-center space-x-2 ${
+                  allSelectedItems.length === 0 || !selectedCadetId
+                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white'
+                }`}
+              >
+                <span>{isSubmitting ? 'Gravando...' : `Confirmar ${totalItems} Lançamento(s)`}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

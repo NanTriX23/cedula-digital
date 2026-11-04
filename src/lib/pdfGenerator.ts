@@ -485,10 +485,10 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
       // prossegue normalmente se imagem não renderizar
     }
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
-    doc.text('Sic Parvis Magna', 34, y + 5.0, { align: 'center' });
+    doc.text('Na Uiraçu é Assim !', 34, y + 5.0, { align: 'center' });
 
     // Avança y com folga segura para que o nome do cadete nunca sobreponha o símbolo
     y += 11.5;

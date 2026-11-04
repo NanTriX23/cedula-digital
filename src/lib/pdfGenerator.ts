@@ -450,17 +450,17 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   const itemHeight = 26; // mm de altura para cada vale de produto
 
   // Cálculo dinâmico da altura total da bobina
-  let calcY = 6;
+  let calcY = 5;
   const hasHeader = Boolean(cadetNumber || cadetName);
   if (hasHeader) {
-    calcY += 6; // espaço para cabeçalho do pedido + linha divisória
+    calcY += 10; // espaço para cabeçalho em 2 linhas (Cadete + Data/Hora) + linha divisória
   }
 
   // Altura dos vales (itens)
   calcY += expenses.length * itemHeight;
 
-  // 25mm de margem final de avanço de papel para serrilha da impressora
-  const docHeight = Math.ceil(calcY + 25);
+  // 8mm de margem final de avanço de papel para serrilha da impressora (sem desperdício de papel)
+  const docHeight = Math.ceil(calcY + 8);
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -468,27 +468,30 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
     format: [58, docHeight]
   });
 
-  // Fundo amarelado suave característico de bobina térmica
-  doc.setFillColor(254, 252, 232);
-  doc.rect(0, 0, 58, docHeight, 'F');
-  doc.setTextColor(0, 0, 0); // Preto puro para máxima legibilidade térmica
+  // Fundo totalmente branco e texto 100% preto puro (sem cinzas/dithering para impressora térmica)
+  doc.setTextColor(0, 0, 0);
 
-  let y = 6;
+  let y = 5;
   const shortCadetName = cadetName ? cadetName.trim() : '';
 
-  // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra)
+  // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra, em 2 linhas para nunca cortar lateralmente)
   if (hasHeader) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const dateStr = new Date().toLocaleString('pt-BR');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
     const cadetInfo = [cadetNumber, shortCadetName].filter(Boolean).join(' ');
-    doc.text(`Cad: ${cadetInfo}  ·  ${dateStr}`, 29, y, { align: 'center' });
-    y += 3.5;
+    doc.text(`Cad: ${cadetInfo}`, 29, y, { align: 'center' });
+    y += 3.6;
 
-    // Linha pontilhada de corte logo após o cabeçalho
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const dateStr = new Date().toLocaleString('pt-BR');
+    doc.text(dateStr, 29, y, { align: 'center' });
+    y += 3.2;
+
+    // Linha pontilhada de corte logo após o cabeçalho (largura segura de 42mm: de 8mm a 50mm)
     doc.setLineDashPattern([1.5, 1], 0);
     doc.setLineWidth(0.25);
-    doc.line(4, y, 54, y);
+    doc.line(8, y, 50, y);
   }
 
   // 2. Vales de Produtos (Itens individuais)
@@ -508,29 +511,31 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
     const boxCenterY = boxTop + (itemHeight / 2);
 
     // Tipografia do Produto: Sans-serif (Helvetica), Negrito
-    let fontSize = 11.5;
+    // Largura máxima segura: 38mm (para impressoras 58mm cujo cabeçote térmico útil é 44-48mm)
+    const maxSafeWidth = 38;
+    let fontSize = 11;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(fontSize);
-    let lines = doc.splitTextToSize(productName, 48);
+    let lines = doc.splitTextToSize(productName, maxSafeWidth);
 
-    // Se o nome for longo e vazar para mais de 2 linhas, ajusta a fonte proporcionalmente
+    // Se o nome for muito longo e passar de 2 linhas, reduz o tamanho para caber perfeitamente
     if (lines.length > 2) {
-      fontSize = 10;
+      fontSize = 9.5;
       doc.setFontSize(fontSize);
-      lines = doc.splitTextToSize(productName, 48);
+      lines = doc.splitTextToSize(productName, maxSafeWidth);
     }
     if (lines.length > 2) {
-      fontSize = 9;
+      fontSize = 8.5;
       doc.setFontSize(fontSize);
-      lines = doc.splitTextToSize(productName, 48);
+      lines = doc.splitTextToSize(productName, maxSafeWidth);
     }
 
-    const productLineHeight = fontSize === 11.5 ? 4.6 : 3.9;
-    const companyGap = 3.6;
+    const productLineHeight = fontSize >= 11 ? 4.5 : (fontSize >= 9.5 ? 4.0 : 3.5);
+    const companyGap = 3.8;
     const totalBlockHeight = ((lines.length - 1) * productLineHeight) + (companyName ? companyGap : 0);
-    const startProductY = boxCenterY - (totalBlockHeight / 2) + 0.8;
+    const startProductY = boxCenterY - (totalBlockHeight / 2) + 0.6;
 
-    // Renderiza o Nome do Produto (em negrito)
+    // Renderiza o Nome do Produto (em negrito, preto puro)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(fontSize);
     doc.setTextColor(0, 0, 0);
@@ -538,22 +543,24 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
       doc.text(line, 29, startProductY + (idx * productLineHeight), { align: 'center' });
     });
 
-    // Renderiza o Nome da Loja (menor, embaixo e centralizado)
+    // Renderiza o Nome da Loja (embaixo, centralizado, preto puro em negrito para não ficar apagado/cinza na térmica)
     if (companyName) {
       const companyY = startProductY + ((lines.length - 1) * productLineHeight) + companyGap;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(60, 60, 60);
-      doc.text(companyName, 29, companyY, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
       doc.setTextColor(0, 0, 0);
+      const companyLines = doc.splitTextToSize(companyName, maxSafeWidth);
+      companyLines.forEach((cLine: string, cIdx: number) => {
+        doc.text(cLine, 29, companyY + (cIdx * 3.2), { align: 'center' });
+      });
     }
 
     y = boxTop + itemHeight;
 
-    // Linha de corte pontilhada separando este vale do próximo
+    // Linha de corte pontilhada separando este vale do próximo (de 8mm a 50mm, 100% dentro da cabeça de impressão)
     doc.setLineDashPattern([1.5, 1], 0);
     doc.setLineWidth(0.25);
-    doc.line(4, y, 54, y);
+    doc.line(8, y, 50, y);
   });
 
   doc.autoPrint();

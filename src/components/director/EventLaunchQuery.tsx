@@ -293,14 +293,14 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   const handlePrintThermalOrder = async (group: typeof groupedByCadet[0], order: typeof groupedByCadet[0]['orders'][0]) => {
     setIsGeneratingPdf(order.id + '-thermal');
     try {
-      const { pdfUrl, pdfBase64 } = await generateThermalReceiptPDF({
+      const { pdfUrl } = await generateThermalReceiptPDF({
         cadetNumber: group.cadetNumber,
         cadetName: group.cadetName,
         period: selectedPeriod,
         expenses: order.expenses,
         director: directorUser,
       });
-      printThermalDirectly(pdfUrl, pdfBase64);
+      printThermalDirectly(pdfUrl);
     } catch (err) {
       console.error(err);
       alert('Erro ao gerar o PDF térmico.');

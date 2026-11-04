@@ -3367,6 +3367,7 @@ export const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
             setPeriodExpenses((prev) => prev.filter((e) => e.id !== expenseId));
           }}
           directorUser={directorUser}
+          allUsers={allUsers}
           theme={theme}
           selectedPeriod={selectedPeriod}
         />

@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Expense, User } from '../../types';
 import { DatabaseService } from '../../lib/pocketbase';
@@ -6,6 +7,7 @@ import {
   Search,
   Trash2,
   Printer,
+  FileSpreadsheet,
   ChevronDown,
   ChevronRight,
   Store,
@@ -22,6 +24,7 @@ interface EventLaunchQueryProps {
   onRefreshData?: () => void;
   onExpenseDeleted?: (expenseId: string) => void;
   directorUser: User;
+  allUsers?: User[];
   theme?: 'dark' | 'light';
   selectedPeriod: string;
 }
@@ -31,6 +34,7 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   onRefreshData: _onRefreshData,
   onExpenseDeleted,
   directorUser,
+  allUsers = [],
   theme = 'dark',
   selectedPeriod,
 }) => {
@@ -305,6 +309,169 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
     }
   };
 
+  // Exportação oficial de cobranças do evento em formato XLSX nos moldes SCAER (turmas 24 em diante)
+  const handleExportEventXLSX = () => {
+    const getMatriculaSortKey = (raw?: string) => {
+      if (!raw) return { turma: 9999, ord: 9999, clean: '' };
+      const digits = String(raw).replace(/\D/g, '');
+      if (digits.length >= 2) {
+        const turma = parseInt(digits.substring(0, 2), 10);
+        const ord = parseInt(digits.substring(2), 10) || 0;
+        return { turma, ord, clean: digits };
+      }
+      return { turma: 9999, ord: 9999, clean: digits };
+    };
+
+    // Filtra exclusivamente cobranças de cadetes do 24 em diante
+    const validEventExpenses = eventExpenses.filter((e) => {
+      const key = getMatriculaSortKey(e.cadetNumber);
+      return key.turma >= 24 && key.turma <= 90;
+    });
+
+    if (validEventExpenses.length === 0) {
+      alert('Nenhum lançamento de evento encontrado para cadetes da turma 24 em diante.');
+      return;
+    }
+
+    // Mapa de cadetes para recuperar dados militares (nome de guerra e esquadrão)
+    const cadetMap = new Map<string, User>();
+    (allUsers || []).forEach((u) => {
+      if (u.cadetNumber) {
+        cadetMap.set(u.cadetNumber.replace(/\D/g, ''), u);
+        cadetMap.set(u.cadetNumber, u);
+      }
+      if (u.id) cadetMap.set(u.id, u);
+    });
+
+    // 1. Planilha Detalhada (Item a item)
+    const sortedExpenses = [...validEventExpenses].sort((a, b) => {
+      const keyA = getMatriculaSortKey(a.cadetNumber);
+      const keyB = getMatriculaSortKey(b.cadetNumber);
+      if (keyA.turma !== keyB.turma) return keyA.turma - keyB.turma;
+      return keyA.ord - keyB.ord;
+    });
+
+    const detailedRows = sortedExpenses.map((e) => {
+      const cleanNum = (e.cadetNumber || '').replace(/\D/g, '');
+      const cadetUser = cadetMap.get(cleanNum) || cadetMap.get(e.cadetNumber || '');
+      const rawDate = e.createdAt || (e as any).created_at || (e as any).created;
+      const dateStr = rawDate ? new Date(rawDate).toLocaleString('pt-BR') : '';
+      const eventName = extractEventName(e.description);
+
+      return {
+        'Mês de Referência': e.billingPeriod || selectedPeriod,
+        'Número': e.cadetNumber || '',
+        'Nome de Guerra': cadetUser?.warName || e.cadetName || e.userName || '',
+        'Esquadrão': cadetUser?.squadron || '',
+        'Evento': eventName,
+        'Fornecedor / Empresa': e.clubName || 'EVENTO',
+        'Descrição do Item': e.description || '',
+        'Valor (R$)': Number(Number(e.amount).toFixed(2)),
+        'Data / Hora': dateStr,
+      };
+    });
+
+    // 2. Planilha Consolidada por Cadete (Moldes oficiais SCAER para débito em lote)
+    const cadetTotalsMap = new Map<string, {
+      cadetNumber: string;
+      warName: string;
+      squadron: string;
+      count: number;
+      total: number;
+      period: string;
+      events: Set<string>;
+    }>();
+
+    sortedExpenses.forEach((e) => {
+      const cleanNum = (e.cadetNumber || '').replace(/\D/g, '');
+      const cadetUser = cadetMap.get(cleanNum) || cadetMap.get(e.cadetNumber || '');
+      const num = e.cadetNumber || '';
+      const warName = cadetUser?.warName || e.cadetName || e.userName || '';
+      const squadron = cadetUser?.squadron || '';
+      const eventName = extractEventName(e.description);
+
+      if (!cadetTotalsMap.has(num)) {
+        cadetTotalsMap.set(num, {
+          cadetNumber: num,
+          warName,
+          squadron,
+          count: 0,
+          total: 0,
+          period: e.billingPeriod || selectedPeriod,
+          events: new Set([eventName]),
+        });
+      }
+
+      const item = cadetTotalsMap.get(num)!;
+      item.count += 1;
+      item.total += Number(e.amount);
+      item.events.add(eventName);
+    });
+
+    const consolidatedRows = Array.from(cadetTotalsMap.values())
+      .sort((a, b) => {
+        const keyA = getMatriculaSortKey(a.cadetNumber);
+        const keyB = getMatriculaSortKey(b.cadetNumber);
+        if (keyA.turma !== keyB.turma) return keyA.turma - keyB.turma;
+        return keyA.ord - keyB.ord;
+      })
+      .map((item) => ({
+        'Mês de Referência': item.period,
+        'Número': item.cadetNumber,
+        'Nome de Guerra': item.warName,
+        'Esquadrão': item.squadron,
+        'Evento': Array.from(item.events).join(', '),
+        'Qtd de Itens': item.count,
+        'Valor Total Cobrança (R$)': Number(item.total.toFixed(2)),
+        'Tipo': 'Consumo Evento',
+      }));
+
+    // 3. Planilha de Repasse por Fornecedor / Empresa
+    const companyTotalsMap = new Map<string, { count: number; total: number }>();
+    sortedExpenses.forEach((e) => {
+      const company = e.clubName || 'Fornecedor';
+      if (!companyTotalsMap.has(company)) {
+        companyTotalsMap.set(company, { count: 0, total: 0 });
+      }
+      const c = companyTotalsMap.get(company)!;
+      c.count += 1;
+      c.total += Number(e.amount);
+    });
+
+    const repasseRows = Array.from(companyTotalsMap.entries()).map(([empresa, data]) => ({
+      'Empresa / Fornecedor': empresa,
+      'Evento': selectedEventFilter === 'ALL' ? 'Todos os Eventos' : selectedEventFilter,
+      'Qtd Itens Vendidos': data.count,
+      'Valor a Repassar (R$)': Number(data.total.toFixed(2)),
+    }));
+
+    // Construção das abas da planilha
+    const wb = XLSX.utils.book_new();
+
+    const wsConsolidated = XLSX.utils.json_to_sheet(consolidatedRows);
+    const wsDetailed = XLSX.utils.json_to_sheet(detailedRows);
+    const wsRepasse = XLSX.utils.json_to_sheet(repasseRows);
+
+    wsConsolidated['!cols'] = [
+      { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 14 },
+      { wch: 25 }, { wch: 14 }, { wch: 24 }, { wch: 16 }
+    ];
+    wsDetailed['!cols'] = [
+      { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 14 },
+      { wch: 20 }, { wch: 25 }, { wch: 35 }, { wch: 14 }, { wch: 20 }
+    ];
+    wsRepasse['!cols'] = [
+      { wch: 30 }, { wch: 25 }, { wch: 20 }, { wch: 22 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsConsolidated, 'Cobrancas_SCAER_Cadetes');
+    XLSX.utils.book_append_sheet(wb, wsDetailed, 'Itens_Detalhados');
+    XLSX.utils.book_append_sheet(wb, wsRepasse, 'Repasse_Empresas');
+
+    const eventFileName = selectedEventFilter === 'ALL' ? 'Todos_Eventos' : selectedEventFilter.replace(/\s+/g, '_');
+    XLSX.writeFile(wb, `Cobrancas_Evento_${eventFileName}_Turma24_em_diante.xlsx`);
+  };
+
   const handlePrintGeneralPDF = async () => {
     if (eventExpenses.length === 0) {
       alert('Nenhum lançamento no evento selecionado para gerar o extrato.');
@@ -346,6 +513,20 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={handleExportEventXLSX}
+              disabled={eventExpenses.length === 0}
+              title="Gerar planilha XLSX de cobrança nos moldes SCAER (organizada do 24 em diante)"
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                isDark
+                  ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300 hover:bg-emerald-900/60 hover:text-white'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Exportar XLSX</span>
+            </button>
+
             <button
               onClick={loadFastEventData}
               disabled={isRefreshing}

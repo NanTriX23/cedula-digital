@@ -218,14 +218,14 @@ export const LaunchEventExpenseModal: React.FC<LaunchEventExpenseModalProps> = (
 
       // Gerar notinha térmica automática
       try {
-        const { pdfUrl } = await generateThermalReceiptPDF({
+        const { pdfUrl, pdfBase64 } = await generateThermalReceiptPDF({
           cadetNumber: cadet.cadetNumber || '',
           cadetName: cadet.warName || cadet.name,
           period: billingPeriod,
           expenses: launches as Expense[],
           director: managerUser,
         });
-        printThermalDirectly(pdfUrl);
+        printThermalDirectly(pdfUrl, pdfBase64);
       } catch (pdfErr) {
         console.error('Erro ao gerar recibo térmico automático:', pdfErr);
       }

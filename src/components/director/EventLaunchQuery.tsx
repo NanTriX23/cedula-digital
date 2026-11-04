@@ -20,6 +20,7 @@ import {
 interface EventLaunchQueryProps {
   periodExpenses: Expense[];
   onRefreshData?: () => void;
+  onExpenseDeleted?: (expenseId: string) => void;
   directorUser: User;
   theme?: 'dark' | 'light';
   selectedPeriod: string;
@@ -28,6 +29,7 @@ interface EventLaunchQueryProps {
 export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   periodExpenses,
   onRefreshData: _onRefreshData,
+  onExpenseDeleted,
   directorUser,
   theme = 'dark',
   selectedPeriod,
@@ -83,6 +85,22 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
   useEffect(() => {
     loadFastEventData();
   }, []);
+
+  // Sincroniza exclusões ocorridas fora desta aba (ex: no Extrato do Cadete) com a listagem de eventos
+  useEffect(() => {
+    if (directEventExpenses) {
+      const remainingPeriodExpenseIds = new Set(periodExpenses.map(e => e.id));
+      setDirectEventExpenses(prev => {
+        if (!prev) return null;
+        return prev.filter(e => {
+          if (e.billingPeriod === selectedPeriod) {
+            return remainingPeriodExpenseIds.has(e.id);
+          }
+          return true;
+        });
+      });
+    }
+  }, [periodExpenses, selectedPeriod]);
 
   // Lista base de gastos de eventos (usa direto do banco ou fallback nas props)
   const allEventExpenses = useMemo(() => {
@@ -233,6 +251,10 @@ export const EventLaunchQuery: React.FC<EventLaunchQueryProps> = ({
           const base = prev || periodExpenses.filter((e) => e.clubId === 'EVENTO' || e.category === 'evento');
           return base.filter((e) => e.id !== expense.id);
         });
+        // Notifica o painel pai (DirectorDashboard) para remover imediatamente do extrato dos cadetes
+        if (onExpenseDeleted) {
+          onExpenseDeleted(expense.id);
+        }
       } else {
         alert('Erro ao excluir o lançamento. Verifique sua conexão.');
       }

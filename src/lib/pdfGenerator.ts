@@ -455,7 +455,7 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   let calcY = 4;
   const hasHeader = Boolean(cadetNumber || cadetName);
   if (hasHeader) {
-    calcY += 18; // espaço para ícone da águia/harpia + cabeçalho em 2 linhas + linha divisória
+    calcY += 21; // Harpia à esquerda + lema em itálico + Cadete + Data/Hora + linha divisória
   }
 
   // Altura dos vales (itens)
@@ -478,20 +478,29 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
 
   // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra)
   if (hasHeader) {
-    // Símbolo da turma (Harpia / Águia) centralizado no topo
+    // Símbolo da turma (Harpia) à esquerda com o lema da turma em itálico ao lado
     try {
-      doc.addImage(HARPY_LOGO_BASE64, 'PNG', 25.0, y, 8, 8);
-      y += 9.2;
+      doc.addImage(HARPY_LOGO_BASE64, 'PNG', 12.5, y, 7.5, 7.5);
     } catch (e) {
       // prossegue normalmente se imagem não renderizar
     }
 
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Sic Parvis Magna', 34, y + 5.0, { align: 'center' });
+
+    // Avança y com folga segura para que o nome do cadete nunca sobreponha o símbolo
+    y += 11.5;
+
+    // Linha do Cadete
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     const cadetInfo = [cadetNumber, shortCadetName].filter(Boolean).join(' ');
     doc.text(`Cad: ${cadetInfo}`, 29, y, { align: 'center' });
     y += 3.6;
 
+    // Linha da Data e Hora
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     const dateStr = new Date().toLocaleString('pt-BR');

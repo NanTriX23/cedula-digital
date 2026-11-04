@@ -443,6 +443,8 @@ export async function generateEventReceiptPDF(options: EventReceiptOptions): Pro
 // Layout alinhado ao padrão de vales de evento (vouchers destacados)
 // ==========================================
 
+const EAGLE_EMOJI_BASE64 = "data:image/png;base64,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";
+
 export async function generateThermalReceiptPDF(options: EventReceiptOptions): Promise<{ pdfBlob: Blob; pdfUrl: string }> {
   const { cadetNumber, cadetName, expenses } = options;
 
@@ -450,10 +452,10 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   const itemHeight = 26; // mm de altura para cada vale de produto
 
   // Cálculo dinâmico da altura total da bobina
-  let calcY = 5;
+  let calcY = 4;
   const hasHeader = Boolean(cadetNumber || cadetName);
   if (hasHeader) {
-    calcY += 10; // espaço para cabeçalho em 2 linhas (Cadete + Data/Hora) + linha divisória
+    calcY += 18; // espaço para ícone da águia/harpia + cabeçalho em 2 linhas + linha divisória
   }
 
   // Altura dos vales (itens)
@@ -471,11 +473,19 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   // Fundo totalmente branco e texto 100% preto puro (sem cinzas/dithering para impressora térmica)
   doc.setTextColor(0, 0, 0);
 
-  let y = 5;
+  let y = 4;
   const shortCadetName = cadetName ? cadetName.trim() : '';
 
-  // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra, em 2 linhas para nunca cortar lateralmente)
+  // 1. Cabeçalho discreto no topo (Apenas 1x para toda a compra)
   if (hasHeader) {
+    // Símbolo da turma (Harpia / Águia) centralizado no topo
+    try {
+      doc.addImage(EAGLE_EMOJI_BASE64, 'PNG', 25.5, y, 7, 7);
+      y += 8.2;
+    } catch (e) {
+      // prossegue normalmente se imagem não renderizar
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     const cadetInfo = [cadetNumber, shortCadetName].filter(Boolean).join(' ');

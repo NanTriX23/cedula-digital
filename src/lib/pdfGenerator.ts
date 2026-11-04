@@ -480,15 +480,15 @@ export async function generateThermalReceiptPDF(options: EventReceiptOptions): P
   if (hasHeader) {
     // Símbolo da turma (Harpia) à esquerda com o lema da turma em itálico ao lado
     try {
-      doc.addImage(HARPY_LOGO_BASE64, 'PNG', 12.5, y, 7.5, 7.5);
+      doc.addImage(HARPY_LOGO_BASE64, 'PNG', 11, y, 7.5, 7.5);
     } catch (e) {
       // prossegue normalmente se imagem não renderizar
     }
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
-    doc.text('Na Uiraçu é Assim !', 34, y + 5.0, { align: 'center' });
+    doc.text('NA UIRAÇU É ASSIM !', 34.5, y + 5.0, { align: 'center' });
 
     // Avança y com folga segura para que o nome do cadete nunca sobreponha o símbolo
     y += 11.5;
